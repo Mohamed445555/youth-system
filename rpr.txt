@@ -1,0 +1,19 @@
+﻿renderPersonRows(rows, bodyId) {
+  const body = document.getElementById(bodyId);
+  if (!rows.length) {
+    body.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:var(--text-dim);">لا توجد نتائج مطابقة.</td></tr>`;
+    return;
+  }
+  const canEdit = hasPermission('edit');
+  const canDelete = hasPermission('delete');
+  body.innerHTML = rows.map(p => `
+    <tr data-id="${p.id}">
+      <td class="id-chip">${escapeHtml(p.registry_id || `#${String(p.id).padStart(4, '0')}`)}</td>
+      <td>${escapeHtml(p.name)} ${escapeHtml(p.surname || '')}</td>
+      <td>${p.age ?? '—'}</td>
+      <td>${escapeHtml(p.city || '—')}</td>
+      <td>${escapeHtml(p.origin_city || '—')}</td>
+      <td><span class="tag tag-${(p.region || '').toLowerCase()}">${REGION_LABELS[p.region] || '—'}</span></td>
+      <td>${escapeHtml(p.tribe || '—')}</td>
+      <td>${escapeHtml(p.phone || '—')}</td>
+      <td class="row-actions">${canEdit ? `<button class="icon-btn edit" data-ed

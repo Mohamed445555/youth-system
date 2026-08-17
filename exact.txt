@@ -1,0 +1,2 @@
+﻿<td class="id-chip">${escapeHtml(p.registry_id || `#${String(p.id).padStart(4, '0')}`)}</td>
+      <td>${escapeHtml(p.name)} ${escapeHtml(p.surname |

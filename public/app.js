@@ -1,0 +1,1033 @@
+﻿const STATE = {
+  currentUser: null,
+  editingId: null,
+  editingUserId: null,
+  selectedDeviceCode: null,
+  pagination: {
+    directory: { page: 1, size: 50 },
+    device: { page: 1, size: 50 }
+  }
+};
+
+const REGION_LABELS = { South: 'الجنوب', West: 'الغرب', East: 'الشرق' };
+const XLSX_COLUMNS = [
+  ['registry_id', 'الرقم'], ['org_id', 'الرقم التنظيمي (المؤتمر)'], ['name', 'الاسم'], ['surname', 'اللقب'], ['age', 'العمر'],
+  ['city', 'مدينة الإقامة'], ['origin_city', 'مدينة الأصل'], ['region', 'المنطقة'],
+  ['tribe', 'القبيلة'], ['ethnicity', 'العرق'], ['id_type', 'نوع الهوية'], ['id_number', 'رقم الهوية'], ['education', 'الشهادة الدراسية'],
+  ['phone', 'الهاتف'], ['phone2', 'هاتف إضافي'], ['notes', 'ملاحظات'], ['created_at', 'تاريخ التسجيل']
+];
+const REGION_AR_TO_EN = { 'الجنوب': 'South', 'الغرب': 'West', 'الشرق': 'East' };
+
+function apiFetch(url, options = {}) {
+  return fetch(url, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...options });
+}
+
+async function apiJson(url, options = {}) {
+  const res = await apiFetch(url, options);
+  if (res.status === 401) {
+    showLoginModal();
+    throw new Error('Unauthorized');
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.error || 'Server error');
+  }
+  return res.json();
+}
+
+function escapeHtml(value) {
+  const div = document.createElement('div');
+  div.textContent = value ?? '';
+  return div.innerHTML;
+}
+
+function hasPermission(permission) {
+  if (!STATE.currentUser) return false;
+  if (STATE.currentUser.role === 'super_admin') return true;
+  return String(STATE.currentUser.permissions || '').split(',').map(p => p.trim().toLowerCase()).includes(permission);
+}
+
+function canEdit() {
+  if (!STATE.currentUser) return false;
+  if (STATE.currentUser.role === 'super_admin' || STATE.currentUser.role === 'manager') return true;
+  return hasPermission('edit');
+}
+
+function canDelete() {
+  if (!STATE.currentUser) return false;
+  if (STATE.currentUser.role === 'super_admin' || STATE.currentUser.role === 'manager') return true;
+  return hasPermission('delete');
+}
+
+function updateUserSummary() {
+  document.getElementById('currentUserName').textContent = STATE.currentUser ? `المستخدم: ${STATE.currentUser.username}` : 'غير مسجل';
+  document.getElementById('currentUserRole').textContent = STATE.currentUser ? `الدور: ${getRoleLabel(STATE.currentUser.role)}` : 'الدور: -';
+  document.getElementById('logoutBtn').style.display = STATE.currentUser ? 'block' : 'none';
+}
+
+function getRoleLabel(role) {
+  if (role === 'super_admin') return 'مشرف فائق';
+  if (role === 'manager') return 'مدير';
+  if (role === 'member') return 'عضو';
+  return role || '-';
+}
+
+function showLoginModal() {
+  document.getElementById('loginModal').classList.add('show');
+  setTimeout(() => document.getElementById('loginUsername').focus(), 120);
+}
+
+function hideLoginModal() {
+  document.getElementById('loginModal').classList.remove('show');
+}
+
+function showLoadingOverlay() {
+  const fill = document.getElementById('loaderBarFill');
+  fill.style.animation = 'none';
+  void fill.offsetWidth; // restart the progress animation
+  fill.style.animation = '';
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+
+function hideLoadingOverlay() {
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
+
+function setPageVisibility() {
+  const usersNav = document.querySelector('.nav-item[data-page="users"]');
+  usersNav.style.display = hasPermission('manage_users') || STATE.currentUser?.role === 'super_admin' ? 'flex' : 'none';
+  const devicesNav = document.querySelector('.nav-item[data-page="devices"]');
+  devicesNav.style.display = STATE.currentUser?.role === 'super_admin' ? 'flex' : 'none';
+  const citiesNav = document.querySelector('.nav-item[data-page="cities"]');
+  if (citiesNav) citiesNav.style.display = STATE.currentUser?.role === 'super_admin' ? 'flex' : 'none';
+  const tribesNav = document.querySelector('.nav-item[data-page="tribes"]');
+  if (tribesNav) tribesNav.style.display = STATE.currentUser?.role === 'super_admin' ? 'flex' : 'none';
+  const ethnicitiesNav = document.querySelector('.nav-item[data-page="ethnicities"]');
+  if (ethnicitiesNav) ethnicitiesNav.style.display = STATE.currentUser?.role === 'super_admin' ? 'flex' : 'none';
+  document.getElementById('exportBtn').disabled = !hasPermission('export');
+  document.getElementById('importBtn').disabled = !hasPermission('export');
+}
+
+function activatePage(page) {
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.toggle('active', i.dataset.page === page));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === `page-${page}`));
+  if (page === 'directory') renderDirectory();
+  if (page === 'devices') renderDevices();
+  if (page === 'cities') renderCities();
+  if (page === 'tribes') renderTribes();
+  if (page === 'ethnicities') renderEthnicities();
+  if (page === 'users') renderUsers();
+  if (page === 'dashboard') renderDashboard();
+  if (page !== 'add' && STATE.editingId !== null) exitEditMode();
+}
+
+function initNavigation() {
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      if (item.dataset.page === 'users' && !hasPermission('manage_users') && STATE.currentUser.role !== 'super_admin') {
+        alert('غير مخول بمشاهدة هذه الصفحة.');
+        return;
+      }
+      if ((item.dataset.page === 'cities' || item.dataset.page === 'tribes') && STATE.currentUser.role !== 'super_admin') {
+        alert('غير مخول بمشاهدة هذه الصفحة.');
+        return;
+      }
+      activatePage(item.dataset.page);
+    });
+  });
+}
+
+async function getCurrentUser() {
+  try {
+    const user = await apiJson('/api/me');
+    STATE.currentUser = user;
+    updateUserSummary();
+    setPageVisibility();
+    return user;
+  } catch (err) {
+    STATE.currentUser = null;
+    updateUserSummary();
+    setPageVisibility();
+    showLoginModal();
+    return null;
+  }
+}
+
+async function login() {
+  const identifier = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  if (!identifier || !password) {
+    alert('الرجاء إدخال اسم المستخدم أو البريد وكلمة المرور.');
+    return;
+  }
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  try {
+    const user = await apiJson('/api/login', { method: 'POST', body: JSON.stringify({ identifier, password }) });
+    STATE.currentUser = user;
+    hideLoginModal();
+    showLoadingOverlay();
+    // Short branded pause so the system feels like it's loading.
+    await new Promise(resolve => setTimeout(resolve, 7000));
+    hideLoadingOverlay();
+    updateUserSummary();
+    setPageVisibility();
+    renderAll();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function logout() {
+  if (!confirm('هل أنت متأكد من تسجيل الخروج؟')) return;
+  try {
+    await apiJson('/api/logout', { method: 'POST' });
+  } catch (e) { /* session may already be expired */ }
+  STATE.currentUser = null;
+  document.getElementById('loginUsername').value = '';
+  document.getElementById('loginPassword').value = '';
+  updateUserSummary();
+  setPageVisibility();
+  activatePage('dashboard');
+  showLoginModal();
+}
+
+function resetPersonForm() {
+  STATE.editingId = null;
+  document.getElementById('f_name').value = '';
+  document.getElementById('f_surname').value = '';
+  document.getElementById('f_age').value = '';
+  document.getElementById('f_region').value = '';
+  document.getElementById('f_city').value = '';
+  document.getElementById('f_origin_city').value = '';
+  document.getElementById('f_ethnicity').value = '';
+  document.getElementById('f_tribe').value = '';
+  document.getElementById('f_idtype').value = '';
+  document.getElementById('f_idnum').value = '';
+  document.getElementById('f_education').value = '';
+  document.getElementById('f_notes').value = '';
+  document.getElementById('f_phone').value = '';
+  document.getElementById('f_phone2').value = '';
+  document.getElementById('formTitle').textContent = 'إضافة شخص';
+  document.getElementById('formSubtitle').textContent = 'أدخل بياناته ثم اضغط حفظ لتسجيله.';
+  document.getElementById('saveBtn').textContent = 'حفظ الإدخال';
+  document.getElementById('cancelEditBtn').style.display = 'none';
+}
+
+function enterEditMode(person) {
+  STATE.editingId = person.id;
+  document.getElementById('f_name').value = person.name || '';
+  document.getElementById('f_surname').value = person.surname || '';
+  document.getElementById('f_age').value = person.age || '';
+  document.getElementById('f_region').value = person.region || '';
+  document.getElementById('f_city').value = person.city || '';
+  document.getElementById('f_origin_city').value = person.origin_city || '';
+  document.getElementById('f_ethnicity').value = person.ethnicity || '';
+  document.getElementById('f_tribe').value = person.tribe || '';
+  document.getElementById('f_idtype').value = person.id_type || '';
+  document.getElementById('f_idnum').value = person.id_number || '';
+  document.getElementById('f_education').value = person.education || '';
+  document.getElementById('f_notes').value = person.notes || '';
+  document.getElementById('f_phone').value = person.phone || '';
+  document.getElementById('f_phone2').value = person.phone2 || '';
+  document.getElementById('formTitle').textContent = `تعديل بيانات — ${person.name} ${person.surname || ''}`;
+  document.getElementById('formSubtitle').textContent = 'عدّل الحقول ثم اضغط حفظ التعديلات.';
+  document.getElementById('saveBtn').textContent = 'حفظ التعديلات';
+  document.getElementById('cancelEditBtn').style.display = 'inline-block';
+  document.querySelector('.nav-item[data-page="add"]').click();
+}
+
+function handleDetailModal(person) {
+  STATE.currentDetailId = person.id;
+  document.getElementById('detailName').textContent = `${person.name} ${person.surname || ''}`;
+  const fields = [
+    ['الرقم', person.registry_id || `#${String(person.id).padStart(4, '0')}`],
+    ['الرقم التنظيمي (المؤتمر)', person.org_id || '—'],
+    ['العمر', person.age ?? '—'],
+    ['المنطقة', REGION_LABELS[person.region] || '—'],
+    ['مدينة الإقامة', person.city || '—'],
+    ['مدينة الأصل', person.origin_city || '—'],
+    ['القبيلة', person.tribe || '—'],
+    ['العرق', person.ethnicity || '—'],
+    ['نوع الهوية', person.id_type || '—'],
+    ['رقم الهوية', person.id_number || '—'],
+    ['الشهادة الدراسية', person.education || '—'],
+    ['الهاتف', person.phone || '—'],
+    ['هاتف إضافي', person.phone2 || '—']
+  ];
+  const html = fields.map(([label, value]) => `<div class="detail-item"><div class="di-label">${label}</div><div class="di-val">${escapeHtml(String(value))}</div></div>`).join('');
+  document.getElementById('detailGrid').innerHTML = html + (person.notes ? `<div class="detail-item full"><div class="di-label">ملاحظات</div><div class="di-val">${escapeHtml(person.notes)}</div></div>` : '');
+  document.getElementById('detailEdit').style.display = canEdit() ? 'inline-flex' : 'none';
+  document.getElementById('detailDelete').style.display = canDelete() ? 'inline-flex' : 'none';
+  document.getElementById('detailModal').classList.add('show');
+}
+
+async function createOrUpdatePerson() {
+  if (!canEdit()) {
+    alert('غير مخول بإضافة أو تعديل السجلات.');
+    return;
+  }
+  const data = {
+    name: document.getElementById('f_name').value.trim(),
+    surname: document.getElementById('f_surname').value.trim(),
+    age: document.getElementById('f_age').value || null,
+    city: document.getElementById('f_city').value.trim(),
+    origin_city: document.getElementById('f_origin_city').value.trim(),
+    region: document.getElementById('f_region').value,
+    tribe: document.getElementById('f_tribe').value.trim(),
+    ethnicity: document.getElementById('f_ethnicity').value,
+    id_type: document.getElementById('f_idtype').value,
+    id_number: document.getElementById('f_idnum').value.trim(),
+    education: document.getElementById('f_education').value.trim(),
+    notes: document.getElementById('f_notes').value.trim(),
+    phone: document.getElementById('f_phone').value.trim(),
+    phone2: document.getElementById('f_phone2').value.trim()
+  };
+  if (!data.name) {
+    alert('الرجاء إدخال الاسم.');
+    return;
+  }
+  if (!data.surname) {
+    alert('الرجاء إدخال اللقب.');
+    return;
+  }
+  if (!data.age) {
+    alert('الرجاء إدخال العمر.');
+    return;
+  }
+  if (!data.city) {
+    alert('الرجاء إدخال مدينة الإقامة.');
+    return;
+  }
+  if (!data.origin_city) {
+    alert('الرجاء إدخال مدينة الأصل.');
+    return;
+  }
+  if (!data.region) {
+    alert('الرجاء اختيار المنطقة.');
+    return;
+  }
+  if (!data.tribe) {
+    alert('الرجاء إدخال القبيلة.');
+    return;
+  }
+  if (!data.ethnicity) {
+    alert('الرجاء اختيار العرق.');
+    return;
+  }
+  if (!data.id_type) {
+    alert('الرجاء اختيار نوع الهوية.');
+    return;
+  }
+  if (!data.id_number) {
+    alert('الرجاء إدخال رقم الهوية.');
+    return;
+  }
+  if (!data.education) {
+    alert('الرجاء إدخال الشهادة الدراسية.');
+    return;
+  }
+  if (!data.phone) {
+    alert('الرجاء إدخال رقم الهاتف.');
+    return;
+  }
+  try {
+    if (STATE.editingId) {
+      await apiJson(`/api/people/${STATE.editingId}`, { method: 'PUT', body: JSON.stringify(data) });
+      showFlash('saveFlash', `&#10003; تم حفظ التعديلات على — ${escapeHtml(data.name)} ${escapeHtml(data.surname)}`);
+      resetPersonForm();
+    } else {
+      const person = await apiJson('/api/people', { method: 'POST', body: JSON.stringify(data) });
+      showFlash('saveFlash', `&#10003; تم التسجيل برقم <strong>${escapeHtml(person.registry_id)}</strong> — المؤتمر: <strong>${escapeHtml(person.org_id)}</strong> — ${escapeHtml(person.name)} ${escapeHtml(person.surname)}`);
+      resetPersonForm();
+    }
+    renderDashboard();
+    renderDirectory();
+    renderDevices();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function showFlash(id, message) {
+  const flash = document.getElementById(id);
+  flash.innerHTML = message;
+  flash.classList.add('show');
+  setTimeout(() => flash.classList.remove('show'), 3200);
+}
+
+function clearPersonForm() {
+  resetPersonForm();
+}
+
+async function renderDashboard() {
+  const people = await apiJson('/api/people');
+  document.getElementById('totalCount').textContent = people.length;
+  document.getElementById('stampDate').textContent = 'آخر تحديث ' + new Date().toLocaleString('ar-LY');
+  const regions = { South: 0, West: 0, East: 0 };
+  people.forEach(p => { if (regions[p.region] !== undefined) regions[p.region]++; });
+  document.getElementById('countSouth').textContent = regions.South;
+  document.getElementById('countWest').textContent = regions.West;
+  document.getElementById('countEast').textContent = regions.East;
+  const max = Math.max(1, regions.South, regions.West, regions.East);
+  document.getElementById('barSouth').style.width = `${regions.South / max * 100}%`;
+  document.getElementById('barWest').style.width = `${regions.West / max * 100}%`;
+  document.getElementById('barEast').style.width = `${regions.East / max * 100}%`;
+  const recentList = document.getElementById('recentList');
+  const recent = people.slice(0, 6);
+  if (!recent.length) {
+    recentList.innerHTML = '<div class="empty-note">لا يوجد أحد مسجَّل بعد. أضف أول شخص للبدء.</div>';
+    return;
+  }
+  recentList.innerHTML = recent.map(p => `
+    <div class="recent-row">
+      <div>
+        <div class="rr-name">${escapeHtml(p.name)} ${escapeHtml(p.surname || '')}</div>
+        <div class="rr-meta">${escapeHtml(p.city || '—')} &middot; ${escapeHtml(p.tribe || '—')}</div>
+      </div>
+      <span class="tag tag-${(p.region || '').toLowerCase()}">${REGION_LABELS[p.region] || '—'}</span>
+    </div>`).join('');
+}
+
+function filterPeople(rows, query, field, region, ethnicity) {
+  const q = String(query || '').trim().toLowerCase();
+  return rows.filter(p => {
+    const regionMatch = !region || p.region === region;
+    const ethnicityMatch = !ethnicity || p.ethnicity === ethnicity;
+    if (!q) return regionMatch && ethnicityMatch;
+    if (field === 'name_surname') {
+      return regionMatch && ethnicityMatch && (String(p.name || '').toLowerCase().includes(q) || String(p.surname || '').toLowerCase().includes(q));
+    }
+    return regionMatch && ethnicityMatch && String(p[field] || '').toLowerCase().includes(q);
+  });
+}
+
+function paginate(rows, state) {
+  const total = rows.length;
+  const pages = Math.max(1, Math.ceil(total / state.size));
+  state.page = Math.min(Math.max(1, state.page), pages);
+  const start = (state.page - 1) * state.size;
+  return { items: rows.slice(start, start + state.size), total, pages, start };
+}
+
+function renderPagination(containerId, state, total, label) {
+  const el = document.getElementById(containerId);
+  const pages = Math.max(1, Math.ceil(total / state.size));
+  state.page = Math.min(Math.max(1, state.page), pages);
+  const from = total ? ((state.page - 1) * state.size) + 1 : 0;
+  const to = total ? Math.min(state.page * state.size, total) : 0;
+  const maxButtons = 7;
+  let pageStart = Math.max(1, state.page - 3);
+  let pageEnd = Math.min(pages, pageStart + maxButtons - 1);
+  pageStart = Math.max(1, pageEnd - maxButtons + 1);
+  let buttons = `<button data-pg-action="prev" ${state.page === 1 ? 'disabled' : ''}>السابق</button>`;
+  if (pageStart > 1) buttons += `<button data-pg-page="1">1</button>${pageStart > 2 ? '<span>…</span>' : ''}`;
+  for (let p = pageStart; p <= pageEnd; p++) buttons += `<button data-pg-page="${p}" class="${p === state.page ? 'active' : ''}">${p}</button>`;
+  if (pageEnd < pages) buttons += `${pageEnd < pages - 1 ? '<span>…</span>' : ''}<button data-pg-page="${pages}">${pages}</button>`;
+  buttons += `<button data-pg-action="next" ${state.page === pages ? 'disabled' : ''}>التالي</button>`;
+  el.innerHTML = `<div class="pagination-info">عرض ${from}–${to} من ${total} ${label}</div><div class="pagination-controls">${buttons}<select class="pagination-size" aria-label="عدد السجلات في الصفحة"><option value="25" ${state.size===25?'selected':''}>25</option><option value="50" ${state.size===50?'selected':''}>50</option><option value="100" ${state.size===100?'selected':''}>100</option><option value="250" ${state.size===250?'selected':''}>250</option></select></div>`;
+  el.querySelectorAll('[data-pg-page]').forEach(btn => btn.addEventListener('click', () => { state.page = Number(btn.dataset.pgPage); state.render(); }));
+  el.querySelector('[data-pg-action="prev"]')?.addEventListener('click', () => { if (state.page > 1) { state.page--; state.render(); } });
+  el.querySelector('[data-pg-action="next"]')?.addEventListener('click', () => { if (state.page < pages) { state.page++; state.render(); } });
+  const sizeSelect = el.querySelector('.pagination-size');
+  if (sizeSelect) {
+    sizeSelect.addEventListener('change', e => { state.size = Number(e.target.value); state.page = 1; state.render(); });
+  }
+}
+
+function renderPersonRows(rows, bodyId) {
+  const body = document.getElementById(bodyId);
+  if (!rows.length) {
+    body.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:var(--text-dim);">لا توجد نتائج مطابقة.</td></tr>`;
+    return;
+  }
+  const canEdit = hasPermission('edit');
+  const canDelete = hasPermission('delete');
+  body.innerHTML = rows.map(p => `
+    <tr data-id="${p.id}">
+      <td class="id-chip">${escapeHtml(p.registry_id || `#${String(p.id).padStart(4, '0')}`)}</td>
+      <td>${escapeHtml(p.name)} ${escapeHtml(p.surname || '')}</td>
+      <td>${p.age ?? '—'}</td>
+      <td>${escapeHtml(p.city || '—')}</td>
+      <td>${escapeHtml(p.origin_city || '—')}</td>
+      <td><span class="tag tag-${(p.region || '').toLowerCase()}">${REGION_LABELS[p.region] || '—'}</span></td>
+      <td>${escapeHtml(p.tribe || '—')}</td>
+      <td>${escapeHtml(p.org_id || '—')}</td>
+      <td class="row-actions">${canEdit ? `<button class="icon-btn edit" data-edit="${p.id}" title="تعديل">&#9998; تعديل</button>` : ''}${canDelete ? `<button class="icon-btn danger" data-del="${p.id}" title="حذف">&#10005; حذف</button>` : ''}</td>
+    </tr>`).join('');
+  body.querySelectorAll('tr[data-id]').forEach(row => row.addEventListener('click', e => {
+    if (e.target.closest('[data-del]') || e.target.closest('[data-edit]')) return;
+    openDetail(Number(row.dataset.id));
+  }));
+  body.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); confirmDelete(Number(btn.dataset.del)); }));
+  body.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); editPerson(Number(btn.dataset.edit)); }));
+}
+
+async function renderDirectory() {
+  const rows = await apiJson('/api/people');
+  let filtered = filterPeople(rows, document.getElementById('searchInput').value, document.getElementById('searchField').value, document.getElementById('regionFilter').value, document.getElementById('ethnicityFilter').value);
+  const orgIdQ = document.getElementById('orgIdSearch').value.trim().toLowerCase();
+  if (orgIdQ) {
+    filtered = filtered.filter(p => {
+      const num = String(p.org_id || '').slice(-5);
+      return num === orgIdQ || p.org_id === orgIdQ;
+    });
+  }
+  const state = STATE.pagination.directory;
+  state.render = () => renderDirectory();
+  const page = paginate(filtered, state);
+  renderPersonRows(page.items, 'directoryBody');
+  renderPagination('directoryPagination', state, page.total, 'سجل');
+}
+
+function editPerson(id) {
+  apiJson(`/api/people`).then(rows => {
+    const person = rows.find(p => p.id === id);
+    if (person) enterEditMode(person);
+  }).catch(() => {});
+}
+
+function openDetail(id) {
+  apiJson(`/api/people`).then(rows => {
+    const person = rows.find(p => p.id === id);
+    if (person) handleDetailModal(person);
+  }).catch(() => {});
+}
+
+function confirmDelete(id) {
+  STATE.pendingDeleteId = id;
+  document.getElementById('confirmModal').classList.add('show');
+}
+
+async function deletePerson() {
+  if (!hasPermission('delete')) {
+    alert('غير مخول بحذف السجلات.');
+    return;
+  }
+  if (!STATE.pendingDeleteId) return;
+  await apiJson(`/api/people/${STATE.pendingDeleteId}`, { method: 'DELETE' });
+  STATE.pendingDeleteId = null;
+  document.getElementById('confirmModal').classList.remove('show');
+  renderDirectory();
+  renderDashboard();
+  renderDevices();
+}
+
+async function renderDevices() {
+  if (STATE.currentUser?.role !== 'super_admin') {
+    document.getElementById('deviceList').innerHTML = '<div class="empty-device">لا يوجد صلاحيات لعرض هذه الصفحة.</div>';
+    document.getElementById('deviceSelectedHeader').innerHTML = '';
+    document.getElementById('deviceDirectoryBody').innerHTML = '';
+    return;
+  }
+  const devices = await apiJson('/api/devices');
+  const list = document.getElementById('deviceList');
+  if (!devices.length) {
+    STATE.selectedDeviceCode = null;
+    list.innerHTML = '<div class="empty-device">لا توجد أجهزة/أعضاء معرّفة بعد.</div>';
+    document.getElementById('deviceSelectedHeader').innerHTML = '';
+    document.getElementById('deviceDirectoryBody').innerHTML = '';
+    return;
+  }
+  if (!STATE.selectedDeviceCode || !devices.some(d => d.device_name === STATE.selectedDeviceCode)) {
+    STATE.selectedDeviceCode = devices[0].device_name;
+  }
+  list.innerHTML = devices.map(d => `<button class="device-card ${d.device_name === STATE.selectedDeviceCode ? 'active' : ''}" data-device="${escapeHtml(d.device_name)}"><span class="device-code">${escapeHtml(d.device_name || d.username)}</span><span class="device-count">${d.count} سجل</span></button>`).join('');
+  list.querySelectorAll('[data-device]').forEach(btn => btn.addEventListener('click', () => {
+    STATE.selectedDeviceCode = btn.dataset.device;
+    document.getElementById('deviceSearchInput').value = '';
+    document.getElementById('deviceSearchField').value = 'name_surname';
+    document.getElementById('deviceRegionFilter').value = '';
+    renderDevices();
+  }));
+  await renderDeviceRecords();
+}
+
+async function renderDeviceRecords() {
+  const rows = await apiJson('/api/people?createdBy=' + encodeURIComponent(STATE.selectedDeviceCode || ''));
+  const header = document.getElementById('deviceSelectedHeader');
+  const input = document.getElementById('deviceSearchInput');
+  const field = document.getElementById('deviceSearchField');
+  const region = document.getElementById('deviceRegionFilter');
+  const state = STATE.pagination.device;
+  state.render = () => renderDeviceRecords();
+  if (!STATE.selectedDeviceCode) {
+    header.textContent = 'اختر جهازاً لعرض سجلاته';
+    input.disabled = field.disabled = region.disabled = true;
+    document.getElementById('deviceDirectoryBody').innerHTML = '';
+    renderPagination('devicePagination', state, 0, 'سجل');
+    return;
+  }
+  input.disabled = field.disabled = region.disabled = false;
+  header.textContent = `سجلات الجهاز: ${STATE.selectedDeviceCode} — ${rows.length} سجل`;
+  const filtered = filterPeople(rows, input.value, field.value, region.value);
+  const page = paginate(filtered, state);
+  renderPersonRows(page.items, 'deviceDirectoryBody');
+  renderPagination('devicePagination', state, page.total, 'سجل');
+}
+
+async function renderCities() {
+  const cities = await apiJson('/api/cities');
+  const wrap = document.getElementById('cityListAll');
+  if (!cities.length) {
+    wrap.innerHTML = '<div class="empty-note" style="width:100%;">لا توجد مدن بعد. أضف واحدة أعلاه لتظهر في القائمة المنسدلة.</div>';
+    return;
+  }
+  wrap.innerHTML = cities.map(city => `
+    <div class="city-pill ${city.auto_added ? 'auto' : ''}">
+      <span>${escapeHtml(city.name)}</span>
+      <span class="cp-region">${REGION_LABELS[city.region] || city.region || '—'}</span>
+      ${city.auto_added ? '<span class="cp-auto-tag">أُضيفت تلقائياً</span>' : ''}
+      <button data-cid="${city.id}" title="إزالة المدينة">&#10005;</button>
+    </div>`).join('');
+  wrap.querySelectorAll('[data-cid]').forEach(btn => btn.addEventListener('click', async () => {
+    await apiJson(`/api/cities/${btn.dataset.cid}`, { method: 'DELETE' });
+    renderCities();
+  }));
+}
+
+async function addCity() {
+  const name = document.getElementById('newCityName').value.trim();
+  const region = document.getElementById('newCityRegion').value;
+  if (!name || !region) return;
+  try {
+    await apiJson('/api/cities', { method: 'POST', body: JSON.stringify({ name, region, auto_added: 0 }) });
+    document.getElementById('newCityName').value = '';
+    document.getElementById('newCityRegion').value = '';
+    renderCities();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function renderTribes() {
+  const tribes = await apiJson('/api/tribes');
+  const wrap = document.getElementById('tribeListAll');
+  if (!tribes.length) {
+    wrap.innerHTML = '<div class="empty-note" style="width:100%;">لا توجد قبائل بعد. أضف واحدة أعلاه لتظهر في القائمة المنسدلة.</div>';
+    return;
+  }
+  wrap.innerHTML = tribes.map(t => `
+    <div class="city-pill ${t.auto_added ? 'auto' : ''}">
+      <span>${escapeHtml(t.name)}</span>
+      ${t.auto_added ? '<span class="cp-auto-tag">أُضيفت تلقائياً</span>' : ''}
+      <button data-tid="${t.id}" title="إزالة القبيلة">&#10005;</button>
+    </div>`).join('');
+  wrap.querySelectorAll('[data-tid]').forEach(btn => btn.addEventListener('click', async () => {
+    await apiJson(`/api/tribes/${btn.dataset.tid}`, { method: 'DELETE' });
+    renderTribes();
+  }));
+}
+
+async function addTribe() {
+  const name = document.getElementById('newTribeName').value.trim();
+  if (!name) return;
+  try {
+    await apiJson('/api/tribes', { method: 'POST', body: JSON.stringify({ name }) });
+    document.getElementById('newTribeName').value = '';
+    renderTribes();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function renderEthnicities() {
+  const ethnicities = await apiJson('/api/ethnicities');
+  const wrap = document.getElementById('ethnicityListAll');
+  if (!ethnicities.length) {
+    wrap.innerHTML = '<div class="empty-note" style="width:100%;">لا توجد أعراق بعد. أضف واحداً أعلاه لتظهر في القائمة المنسدلة.</div>';
+    return;
+  }
+  wrap.innerHTML = ethnicities.map(e => `
+    <div class="city-pill">
+      <span>${escapeHtml(e.name)}</span>
+      <button data-eid="${e.id}" title="إزالة العرق">&#10005;</button>
+    </div>`).join('');
+  wrap.querySelectorAll('[data-eid]').forEach(btn => btn.addEventListener('click', async () => {
+    await apiJson(`/api/ethnicities/${btn.dataset.eid}`, { method: 'DELETE' });
+    renderEthnicities();
+    loadEthnicityDropdowns();
+  }));
+}
+
+async function addEthnicity() {
+  const name = document.getElementById('newEthnicityName').value.trim();
+  if (!name) return;
+  try {
+    await apiJson('/api/ethnicities', { method: 'POST', body: JSON.stringify({ name }) });
+    document.getElementById('newEthnicityName').value = '';
+    renderEthnicities();
+    loadEthnicityDropdowns();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function loadEthnicityDropdowns() {
+  const ethnicities = await apiJson('/api/ethnicities');
+  const selects = ['f_ethnicity', 'ethnicityFilter'];
+  for (const id of selects) {
+    const sel = document.getElementById(id);
+    const current = sel.value;
+    sel.innerHTML = '<option value="">' + (id === 'f_ethnicity' ? 'اختر العرق' : 'كل الأعراق') + '</option>' +
+      ethnicities.map(e => `<option value="${escapeHtml(e.name)}">${escapeHtml(e.name)}</option>`).join('');
+    sel.value = current;
+  }
+}
+
+async function renderUsers() {
+  if (!hasPermission('manage_users') && STATE.currentUser.role !== 'super_admin') {
+    alert('هذه الصفحة متاحة فقط للمشرف الفائق أو الحسابات المخولة.');
+    activatePage('dashboard');
+    return;
+  }
+  document.getElementById('userSearchInput').value = '';
+  document.getElementById('userRoleFilter').value = '';
+  STATE.editingUserId = null;
+  document.getElementById('saveUserBtn').textContent = 'حفظ المستخدم';
+  document.getElementById('userUsername').value = '';
+  document.getElementById('userEmail').value = '';
+  document.getElementById('userDeviceName').value = '';
+  document.getElementById('userRole').value = 'member';
+  document.getElementById('userPassword').value = '';
+  document.getElementById('userPermissions').value = '';
+  await renderUserTable();
+}
+
+async function renderUserTable() {
+  if (!hasPermission('manage_users') && STATE.currentUser.role !== 'super_admin') return;
+  let rows = await apiJson('/api/users');
+  const query = document.getElementById('userSearchInput').value.trim().toLowerCase();
+  const roleFilter = document.getElementById('userRoleFilter').value;
+  rows = rows.filter(user => {
+    const matchRole = !roleFilter || user.role === roleFilter;
+    const matchQuery = !query || user.username.toLowerCase().includes(query) || user.email.toLowerCase().includes(query);
+    return matchRole && matchQuery;
+  });
+  const body = document.getElementById('userTableBody');
+  if (!rows.length) {
+    body.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-dim);">لا يوجد مستخدمون مطابقون.</td></tr>`;
+    return;
+  }
+  body.innerHTML = rows.map(user => `
+    <tr data-user-id="${user.id}">
+      <td>${escapeHtml(user.username)}</td>
+      <td>${escapeHtml(user.email)}</td>
+      <td>${escapeHtml(user.device_name || '-')}</td>
+      <td>${getRoleLabel(user.role)}</td>
+      <td>${escapeHtml(user.permissions || '')}</td>
+      <td class="row-actions"><button class="icon-btn edit" data-edit-user="${user.id}" title="تعديل">&#9998; تعديل</button><button class="icon-btn danger" data-delete-user="${user.id}" title="حذف">&#10005; حذف</button></td>
+    </tr>`).join('');
+  body.querySelectorAll('[data-edit-user]').forEach(btn => btn.addEventListener('click', async e => {
+    e.stopPropagation();
+    if (!hasPermission('manage_users') && STATE.currentUser.role !== 'super_admin') {
+      alert('غير مخول بتعديل المستخدمين.');
+      return;
+    }
+    const id = Number(btn.dataset.editUser);
+    const users = await apiJson('/api/users');
+    const user = users.find(u => u.id === id);
+    if (!user) return;
+    STATE.editingUserId = user.id;
+    document.getElementById('userUsername').value = user.username;
+    document.getElementById('userEmail').value = user.email;
+    document.getElementById('userDeviceName').value = user.device_name || '';
+    document.getElementById('userRole').value = user.role;
+    document.getElementById('userPermissions').value = user.permissions || '';
+    document.getElementById('userPassword').value = '';
+    document.getElementById('saveUserBtn').textContent = 'حفظ التعديلات';
+  }));
+  body.querySelectorAll('[data-delete-user]').forEach(btn => btn.addEventListener('click', async e => {
+    e.stopPropagation();
+    if (!hasPermission('manage_users') && STATE.currentUser.role !== 'super_admin') {
+      alert('غير مخول بحذف المستخدمين.');
+      return;
+    }
+    const id = Number(btn.dataset.deleteUser);
+    if (id === STATE.currentUser.id) {
+      alert('لا يمكنك حذف حسابك الحالي.');
+      return;
+    }
+    if (!confirm('هل أنت متأكد من حذف هذا المستخدم؟')) return;
+    await apiJson(`/api/users/${id}`, { method: 'DELETE' });
+    renderUserTable();
+  }));
+}
+
+async function saveUser() {
+  if (!hasPermission('manage_users') && STATE.currentUser.role !== 'super_admin') {
+    alert('غير مخول بإدارة المستخدمين.');
+    return;
+  }
+  const username = document.getElementById('userUsername').value.trim();
+  const email = document.getElementById('userEmail').value.trim();
+  const device_name = document.getElementById('userDeviceName').value.trim();
+  const role = document.getElementById('userRole').value;
+  const password = document.getElementById('userPassword').value;
+  const permissions = document.getElementById('userPermissions').value.trim();
+  if (!username || !email || !role) {
+    alert('يرجى تعبئة اسم المستخدم والبريد الإلكتروني والدور.');
+    return;
+  }
+  try {
+    if (STATE.editingUserId) {
+      await apiJson(`/api/users/${STATE.editingUserId}`, { method: 'PUT', body: JSON.stringify({ username, email, password, role, device_name, permissions }) });
+      showFlash('userSaveFlash', 'تم حفظ التعديلات.');
+    } else {
+      if (!password) {
+        alert('يرجى تحديد كلمة مرور للحساب الجديد.');
+        return;
+      }
+      await apiJson('/api/users', { method: 'POST', body: JSON.stringify({ username, email, password, role, device_name, permissions }) });
+      showFlash('userSaveFlash', 'تم إنشاء المستخدم.');
+    }
+    STATE.editingUserId = null;
+    document.getElementById('saveUserBtn').textContent = 'حفظ المستخدم';
+    document.getElementById('userUsername').value = '';
+    document.getElementById('userEmail').value = '';
+    document.getElementById('userDeviceName').value = '';
+    document.getElementById('userRole').value = 'member';
+    document.getElementById('userPassword').value = '';
+    document.getElementById('userPermissions').value = '';
+    renderUserTable();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function fillCities(type) {
+  const cities = await apiJson('/api/cities');
+  const input = document.getElementById(type === 'origin' ? 'f_origin_city' : 'f_city');
+  const list = document.getElementById(type === 'origin' ? 'cityList_origin' : 'cityList_res');
+  const query = input.value.trim().toLowerCase();
+  if (!query) {
+    list.classList.remove('show');
+    return;
+  }
+  const matches = cities.filter(c => c.name.toLowerCase().startsWith(query));
+  if (!matches.length) {
+    list.innerHTML = '<div class="autocomplete-empty">لا توجد مدينة مطابقة — يمكنك كتابة اسم جديد وسيُحفظ تلقائياً</div>';
+  } else {
+    list.innerHTML = matches.map(c => `<div class="autocomplete-item" data-val="${escapeHtml(c.name)}">${escapeHtml(c.name)} <span style="color:var(--text-dim);font-size:12px;">(${REGION_LABELS[c.region] || c.region || ''})</span></div>`).join('');
+  }
+  list.classList.add('show');
+}
+
+async function fillTribes() {
+  const tribes = await apiJson('/api/tribes');
+  const input = document.getElementById('f_tribe');
+  const list = document.getElementById('tribeList_res');
+  if (!input || !list) return;
+  const query = input.value.trim().toLowerCase();
+  if (!query) { list.classList.remove('show'); return; }
+  const matches = tribes.filter(t => String(t.name || '').toLowerCase().startsWith(query));
+  if (!matches.length) {
+    list.innerHTML = '<div class="autocomplete-empty">لا توجد قبيلة مطابقة — يمكنك كتابة اسم جديد وسيُحفظ تلقائياً</div>';
+  } else {
+    list.innerHTML = matches.map(t => `<div class="autocomplete-item" data-val="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>`).join('');
+  }
+  list.classList.add('show');
+}
+
+function initAutocomplete() {
+  const setup = (inputId, listId) => {
+    const input = document.getElementById(inputId);
+    const list = document.getElementById(listId);
+    input.addEventListener('input', () => fillCities(inputId === 'f_origin_city' ? 'origin' : 'res'));
+    list.addEventListener('click', e => {
+      const item = e.target.closest('.autocomplete-item');
+      if (item && item.dataset.val) {
+        input.value = item.dataset.val;
+        list.classList.remove('show');
+      }
+    });
+    document.addEventListener('click', e => {
+      if (!input.contains(e.target) && !list.contains(e.target)) list.classList.remove('show');
+    });
+  };
+  setup('f_city', 'cityList_res');
+  setup('f_origin_city', 'cityList_origin');
+
+  // Tribe autocomplete (list of tribes is shared like cities).
+  const tInput = document.getElementById('f_tribe');
+  const tList = document.getElementById('tribeList_res');
+  if (tInput && tList) {
+    tInput.addEventListener('input', fillTribes);
+    tList.addEventListener('click', e => {
+      const item = e.target.closest('.autocomplete-item');
+      if (item && item.dataset.val) { tInput.value = item.dataset.val; tList.classList.remove('show'); }
+    });
+    document.addEventListener('click', e => {
+      if (!tInput.contains(e.target) && !tList.contains(e.target)) tList.classList.remove('show');
+    });
+  }
+}
+
+async function importExcel(file) {
+  if (!file) return;
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    const headerMap = {};
+    XLSX_COLUMNS.forEach(([key, label]) => { headerMap[label.toLowerCase()] = key; });
+    let added = 0, skipped = 0;
+    for (const row of rows) {
+      const rec = {};
+      Object.keys(row).forEach(h => {
+        const key = headerMap[h.trim().toLowerCase()];
+        if (key) rec[key] = String(row[h] || '').trim();
+      });
+      if (!rec.name) continue;
+      if (rec.region && REGION_AR_TO_EN[rec.region]) rec.region = REGION_AR_TO_EN[rec.region];
+      try {
+        await apiJson('/api/people', { method: 'POST', body: JSON.stringify(rec) });
+        added++;
+      } catch (err) {
+        // A 409 is an exact duplicate already in the system -> count it, don't fail.
+        if (err.message && err.message.includes('موجود بالفعل')) { skipped++; continue; }
+        // Other invalid rows are ignored like before.
+      }
+    }
+    renderAll();
+    const skipMsg = skipped > 0 ? `، تم تخطّي ${skipped} مكررًا (موجود مسبقًا)` : '';
+    alert(`اكتمل الاستيراد — تمت إضافة ${added} سجلاً${skipMsg}.`);
+  } catch (err) {
+    alert('تعذّرت قراءة هذا الملف. تأكد أنه ملف إكسل صالح.');
+  }
+}
+
+function initEvents() {
+  document.getElementById('saveBtn').addEventListener('click', createOrUpdatePerson);
+  document.getElementById('clearBtn').addEventListener('click', clearPersonForm);
+  document.getElementById('cancelEditBtn').addEventListener('click', resetPersonForm);
+  document.getElementById('searchInput').addEventListener('input', () => { STATE.pagination.directory.page = 1; renderDirectory(); });
+  document.getElementById('searchField').addEventListener('change', () => { STATE.pagination.directory.page = 1; renderDirectory(); });
+  document.getElementById('regionFilter').addEventListener('change', () => { STATE.pagination.directory.page = 1; renderDirectory(); });
+  document.getElementById('ethnicityFilter').addEventListener('change', () => { STATE.pagination.directory.page = 1; renderDirectory(); });
+  document.getElementById('orgIdSearchBtn').addEventListener('click', () => { STATE.pagination.directory.page = 1; renderDirectory(); });
+  document.getElementById('orgIdSearch').addEventListener('keydown', e => { if (e.key === 'Enter') { STATE.pagination.directory.page = 1; renderDirectory(); } });
+  document.getElementById('resetSearchBtn').addEventListener('click', () => {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('searchField').value = 'name_surname';
+    document.getElementById('regionFilter').value = '';
+    document.getElementById('ethnicityFilter').value = '';
+    document.getElementById('orgIdSearch').value = '';
+    STATE.pagination.directory.page = 1;
+    renderDirectory();
+  });
+  document.getElementById('deviceSearchInput').addEventListener('input', () => { STATE.pagination.device.page = 1; renderDevices(); });
+  document.getElementById('deviceSearchField').addEventListener('change', () => { STATE.pagination.device.page = 1; renderDevices(); });
+  document.getElementById('deviceRegionFilter').addEventListener('change', () => { STATE.pagination.device.page = 1; renderDevices(); });
+  document.getElementById('confirmOk').addEventListener('click', deletePerson);
+  document.getElementById('confirmCancel').addEventListener('click', () => { STATE.pendingDeleteId = null; document.getElementById('confirmModal').classList.remove('show'); });
+  document.getElementById('detailClose').addEventListener('click', () => document.getElementById('detailModal').classList.remove('show'));
+  document.getElementById('detailEdit').addEventListener('click', async () => {
+    if (!canEdit()) { alert('غير مخول بتعديل السجلات.'); return; }
+    const id = STATE.currentDetailId;
+    document.getElementById('detailModal').classList.remove('show');
+    editPerson(id);
+  });
+  document.getElementById('detailDelete').addEventListener('click', () => {
+    if (!canDelete()) { alert('غير مخول بحذف السجلات.'); return; }
+    document.getElementById('detailModal').classList.remove('show');
+    confirmDelete(STATE.currentDetailId);
+  });
+  document.getElementById('addCityBtn').addEventListener('click', addCity);
+  document.getElementById('addTribeBtn').addEventListener('click', addTribe);
+  document.getElementById('saveUserBtn').addEventListener('click', saveUser);
+  document.getElementById('clearUserFormBtn').addEventListener('click', () => {
+    STATE.editingUserId = null;
+    document.getElementById('saveUserBtn').textContent = 'حفظ المستخدم';
+    document.getElementById('userUsername').value = '';
+    document.getElementById('userEmail').value = '';
+    document.getElementById('userDeviceName').value = '';
+    document.getElementById('userRole').value = 'member';
+    document.getElementById('userPassword').value = '';
+    document.getElementById('userPermissions').value = '';
+  });
+  document.getElementById('userSearchInput').addEventListener('input', renderUserTable);
+  document.getElementById('userRoleFilter').addEventListener('change', renderUserTable);
+  document.getElementById('loginBtn').addEventListener('click', login);
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+  document.getElementById('loginUsername').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginPassword').focus(); });
+  document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+  document.getElementById('addEthnicityBtn').addEventListener('click', addEthnicity);
+  document.getElementById('exportSearchBtn').addEventListener('click', exportSearchExcel);
+  document.getElementById('exportBtn').addEventListener('click', exportExcel);
+  document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
+  document.getElementById('importFile').addEventListener('change', e => importExcel(e.target.files[0]));
+  initAutocomplete();
+}
+
+function renderAll() {
+  renderDashboard();
+  renderDirectory();
+  renderDevices();
+  renderCities();
+  renderTribes();
+  renderEthnicities();
+  loadEthnicityDropdowns();
+  if (STATE.currentUser && (hasPermission('manage_users') || STATE.currentUser.role === 'super_admin')) {
+    renderUserTable();
+  }
+}
+
+async function exportExcel() {
+  try {
+    const rows = await apiJson('/api/people');
+    const data = rows.map(p => XLSX_COLUMNS.map(([key]) => key === 'region' ? (REGION_LABELS[p.region] || p.region || '') : p[key] || ''));
+    const ws = XLSX.utils.aoa_to_sheet([XLSX_COLUMNS.map(c => c[1]), ...data]);
+    ws['!cols'] = XLSX_COLUMNS.map(([key]) => ({ wch: key === 'notes' ? 30 : 16 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'الأشخاص');
+    XLSX.writeFile(wb, `السجل-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function exportSearchExcel() {
+  try {
+    let rows = await apiJson('/api/people');
+    const query = document.getElementById('searchInput').value;
+    const field = document.getElementById('searchField').value;
+    const region = document.getElementById('regionFilter').value;
+    const ethnicity = document.getElementById('ethnicityFilter').value;
+    rows = filterPeople(rows, query, field, region, ethnicity);
+    const orgIdQ = document.getElementById('orgIdSearch').value.trim().toLowerCase();
+    if (orgIdQ) {
+      rows = rows.filter(p => {
+        const num = String(p.org_id || '').slice(-5);
+        return num === orgIdQ || p.org_id === orgIdQ;
+      });
+    }
+    const data = rows.map(p => XLSX_COLUMNS.map(([key]) => key === 'region' ? (REGION_LABELS[p.region] || p.region || '') : p[key] || ''));
+    const ws = XLSX.utils.aoa_to_sheet([XLSX_COLUMNS.map(c => c[1]), ...data]);
+    ws['!cols'] = XLSX_COLUMNS.map(([key]) => ({ wch: key === 'notes' ? 30 : 16 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'الأشخاص');
+    const suffix = query || region ? `-بحث-${new Date().toISOString().slice(0, 10)}` : `-${new Date().toISOString().slice(0, 10)}`;
+    XLSX.writeFile(wb, `السجل${suffix}.xlsx`);
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function bootstrap() {
+  initNavigation();
+  initEvents();
+  await getCurrentUser();
+  if (STATE.currentUser) {
+    renderAll();
+  }
+}
+
+bootstrap().catch(err => {
+  console.error(err);
+  alert('حدث خطأ أثناء تحميل التطبيق.');
+});
+
