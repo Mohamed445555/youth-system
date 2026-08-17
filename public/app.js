@@ -960,6 +960,36 @@ function initEvents() {
   document.getElementById('exportBtn').addEventListener('click', exportExcel);
   document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
   document.getElementById('importFile').addEventListener('change', e => importExcel(e.target.files[0]));
+
+  /* Mobile hamburger menu toggle */
+  const hamburgerBtn = document.getElementById('hamburgerBtn');
+  const sidebar = document.getElementById('sidebar');
+  const sidebarOverlay = document.getElementById('sidebarOverlay');
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    sidebarOverlay.classList.remove('show');
+    hamburgerBtn.classList.remove('open');
+    hamburgerBtn.innerHTML = '&#9776;';
+  }
+  function toggleSidebar() {
+    const isOpen = sidebar.classList.toggle('open');
+    sidebarOverlay.classList.toggle('show', isOpen);
+    hamburgerBtn.classList.toggle('open', isOpen);
+    hamburgerBtn.innerHTML = isOpen ? '&#10005;' : '&#9776;';
+  }
+  if (hamburgerBtn) {
+    hamburgerBtn.addEventListener('click', toggleSidebar);
+  }
+  if (sidebarOverlay) {
+    sidebarOverlay.addEventListener('click', closeSidebar);
+  }
+  /* Close sidebar on nav click (mobile) */
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      if (window.innerWidth <= 600) closeSidebar();
+    });
+  });
+
   initAutocomplete();
 }
 
