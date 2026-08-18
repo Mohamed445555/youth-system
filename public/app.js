@@ -1171,12 +1171,12 @@ function buildTeamCardHtml(teamData) {
     teamData.members.forEach(m => {
       html += `<div class="map-member">
         <div class="map-avatar map-avatar-member">${escapeHtml(m.username.charAt(0).toUpperCase())}</div>
-        <div class="map-person-info">
-          <div class="map-person-name">${escapeHtml(m.full_name || m.username)}</div>
-          <div class="map-person-detail">@${escapeHtml(m.username)} • ${escapeHtml(m.device_name)}</div>
-          ${m.phone ? `<div class="map-person-detail">${escapeHtml(m.phone)}</div>` : ''}
+        <div class="map-person-info" style="text-align:center;">
+          <div class="map-person-name" style="font-size:13px;">${escapeHtml(m.full_name || m.username)}</div>
+          <div class="map-person-detail">@${escapeHtml(m.username)}</div>
+          ${m.phone ? `<div class="map-person-detail" style="font-size:11px;">${escapeHtml(m.phone)}</div>` : ''}
         </div>
-        <button class="btn btn-ghost btn-small map-view-btn" onclick="showUserDetail(${m.id})">عرض</button>
+        <button class="btn btn-ghost btn-small map-view-btn" style="font-size:11px;" onclick="showUserDetail(${m.id})">عرض</button>
       </div>`;
     });
     html += '</div>';

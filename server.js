@@ -284,10 +284,9 @@ async function generateRegistryId(fullPrefix) {
   return `${prefix}-${String(next).padStart(4, '0')}`;
 }
 
-async function generateOrgId(deviceName) {
-  const prefix = deviceName && String(deviceName).trim() ? String(deviceName).trim().toUpperCase() : 'REG';
-  // A single GLOBAL counter shared by every device/user so the conference ID is
-  // unique across the whole system. First registrant gets ...00101.
+async function generateOrgId(fullPrefix) {
+  const prefix = fullPrefix && String(fullPrefix).trim() ? String(fullPrefix).trim().toUpperCase() : 'REG';
+  // GLOBAL counter shared by all devices: first entry gets 00101, second 00102, etc.
   const row = await runGet(
     `SELECT COALESCE(MAX(CAST(SUBSTR(org_id, LENGTH(org_id) - 4) AS INTEGER)), 100) AS last
      FROM people WHERE org_id IS NOT NULL AND org_id != ''`
@@ -812,7 +811,7 @@ app.post('/api/people', requireAuth, requireCanEditRecords, async (req, res) => 
   const registryPrefix = await getRegistryPrefix(req.user);
   const registryId = await generateRegistryId(registryPrefix);
   const createdBy = req.user.device_name || '';
-  const orgId = await generateOrgId(req.user.device_name);
+  const orgId = await generateOrgId(registryPrefix);
   await runExec(
     `INSERT INTO people (registry_id,name,surname,age,city,origin_city,region,tribe,ethnicity,id_type,id_number,education,notes,phone,phone2,created_by,org_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [

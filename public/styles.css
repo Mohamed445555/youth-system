@@ -583,7 +583,7 @@ tbody tr:hover{ background:var(--paper-dim); }
 .map-region-icon{ font-size:26px; }
 .map-team-grid{
   display:grid;
-  grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns:repeat(auto-fill, minmax(420px, 1fr));
   gap:18px;
 }
 .map-team-card{
@@ -593,6 +593,7 @@ tbody tr:hover{ background:var(--paper-dim); }
   padding:18px;
   display:flex;
   flex-direction:column;
+  min-width:0;
 }
 .map-supervisor{
   display:flex;
@@ -626,19 +627,22 @@ tbody tr:hover{ background:var(--paper-dim); }
   margin:6px auto;
 }
 .map-members{
-  display:flex;
-  flex-direction:column;
-  gap:10px;
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));
+  gap:8px;
   padding-top:8px;
 }
 .map-member{
   display:flex;
+  flex-direction:column;
   align-items:center;
-  gap:12px;
-  padding:10px 12px;
+  text-align:center;
+  gap:6px;
+  padding:10px 8px;
   background:var(--card);
   border:1px solid var(--border);
   border-radius:8px;
+  min-width:0;
 }
 /* ---------- Responsive: very small phones (max-width: 400px) ---------- */
 @media (max-width:400px){
