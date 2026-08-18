@@ -583,7 +583,7 @@ tbody tr:hover{ background:var(--paper-dim); }
 .map-region-icon{ font-size:26px; }
 .map-team-grid{
   display:grid;
-  grid-template-columns:repeat(auto-fill, minmax(420px, 1fr));
+  grid-template-columns:1fr;
   gap:18px;
 }
 .map-team-card{
