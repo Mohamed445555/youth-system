@@ -20,10 +20,14 @@
     <div class="nav-item active" data-page="dashboard"><span class="nav-icon">&#9673;</span><span class="label">لوحة العدّ</span></div>
     <div class="nav-item" data-page="add"><span class="nav-icon">&#10010;</span><span class="label">إضافة شخص</span></div>
     <div class="nav-item" data-page="directory"><span class="nav-icon">&#9776;</span><span class="label">السجل والبحث</span></div>
+    <div class="nav-item" data-page="supervisors"><span class="nav-icon">&#9733;</span><span class="label">المشرفون</span></div>
+    <div class="nav-item" data-page="my-team"><span class="nav-icon">&#128101;</span><span class="label">فريقي</span></div>
     <div class="nav-item" data-page="cities"><span class="nav-icon">&#9679;</span><span class="label">المدن</span></div>
     <div class="nav-item" data-page="tribes"><span class="nav-icon">&#9650;</span><span class="label">القبائل</span></div>
     <div class="nav-item" data-page="ethnicities"><span class="nav-icon">&#9679;</span><span class="label">العرق</span></div>
     <div class="nav-item" data-page="devices"><span class="nav-icon">&#9783;</span><span class="label">الأجهزة</span></div>
+<div class="nav-item" data-page="map"><span class="nav-icon">&#9671;</span><span class="label">هيكل الفرق</span></div>
+<div class="nav-item" data-page="add-member"><span class="nav-icon">&#10010;</span><span class="label">إضافة عضو</span></div>
     <div class="nav-item" data-page="users"><span class="nav-icon">&#128101;</span><span class="label">المستخدمون</span></div>
     <div class="sidebar-footer">
       <div id="userSummary" style="font-size:12px; color:#A9B4BE; padding:0 24px 10px; line-height:1.4;">
@@ -88,21 +92,12 @@
           <div class="field"><label>المنطقة</label><select id="f_region"><option value="">اختر المنطقة</option><option value="South">الجنوب</option><option value="West">الغرب</option><option value="East">الشرق</option></select></div>
           <div class="field autocomplete-wrap"><label>مدينة الإقامة</label><input type="text" id="f_city" placeholder="ابدأ بكتابة اسم المدينة..." autocomplete="off"><div class="autocomplete-list" id="cityList_res"></div></div>
           <div class="field autocomplete-wrap"><label>مدينة الأصل <span class="opt">(موطن القبيلة)</span></label><input type="text" id="f_origin_city" placeholder="ابدأ بكتابة اسم المدينة..." autocomplete="off"><div class="autocomplete-list" id="cityList_origin"></div></div>
-          <div class="field"><label>العرق <span class="opt" style="color:var(--clay);">*</span></label><select id="f_ethnicity"><option value="">اختر العرق</option></select></div>
           <div class="field autocomplete-wrap"><label>القبيلة</label><input type="text" id="f_tribe" placeholder="ابدأ بكتابة اسم القبيلة..." autocomplete="off"><div class="autocomplete-list" id="tribeList_res"></div></div>
-          <div class="field id-field">
-            <label>نوع الهوية</label>
-            <select id="f_idtype">
-              <option value="">اختر نوع الهوية</option>
-              <option value="بطاقة شخصية">بطاقة شخصية</option>
-              <option value="جواز سفر">جواز سفر</option>
-            </select>
-            <label class="sub-label">رقم الهوية</label>
-            <input type="text" id="f_idnum" placeholder="أدخل رقم البطاقة أو جواز السفر">
-          </div>
-          <div class="field"><label>رقم الهاتف</label><input type="text" id="f_phone" placeholder="الهاتف الأساسي"></div>
+          <div class="field"><label>نوع الهوية</label><select id="f_idtype"><option value="">اختر نوع الهوية</option><option value="بطاقة شخصية">بطاقة شخصية</option><option value="جواز سفر">جواز سفر</option></select></div>
+          <div class="field"><label>رقم الهوية</label><input type="text" id="f_idnum" placeholder="رقم البطاقة أو جواز السفر"></div>
+          <div class="field"><label>الهاتف</label><input type="text" id="f_phone" placeholder="الهاتف الأساسي"></div>
           <div class="field"><label>هاتف إضافي <span class="opt">(اختياري)</span></label><input type="text" id="f_phone2" placeholder="هاتف إضافي"></div>
-          <div class="field full"><label>المؤهل العلمي  <span class="opt">(اختياري)</span></label><input type="text" id="f_education" placeholder="مثال: بكالوريوس علوم"></div>
+          <div class="field"><label>المؤهل العلمي <span class="opt"></span></label><input type="text" id="f_education" placeholder="مثال: بكالوريوس علوم"></div>
           <div class="field full"><label>ملاحظات <span class="opt">(اختياري)</span></label><textarea id="f_notes" placeholder="أي ملاحظات إضافية..."></textarea></div>
         </div>
 
@@ -123,7 +118,6 @@
         <input type="text" id="searchInput" placeholder="ابحث بالاسم أو اللقب...">
         <select id="searchField" title="مجال البحث"><option value="name_surname" selected>الاسم واللقب</option><option value="name">الاسم</option><option value="surname">اللقب</option><option value="city">مدينة الإقامة</option><option value="origin_city">مدينة الأصل</option><option value="tribe">القبيلة</option></select>
         <select id="regionFilter"><option value="">كل المناطق</option><option value="South">الجنوب</option><option value="West">الغرب</option><option value="East">الشرق</option></select>
-        <select id="ethnicityFilter"><option value="">كل الأعراق</option></select>
         <button class="btn btn-primary btn-small" id="exportSearchBtn" title="تصدير نتائج البحث الحالية">تصدير النتائج</button>
         <button class="btn btn-ghost btn-small" id="resetSearchBtn" title="إعادة تعيين البحث">إعادة تعيين</button>
       </div>
@@ -137,10 +131,81 @@
       </div>
 
       <table>
-        <thead><tr><th>الرقم</th><th>الاسم</th><th>العمر</th><th>مدينة الإقامة</th><th>مدينة الأصل</th><th>المنطقة</th><th>القبيلة</th><th>الرقم التنظيمي</th><th></th></tr></thead>
+        <thead><tr><th>ID</th><th>الاسم</th><th>العمر</th><th>مدينة الإقامة</th><th>مدينة الأصل</th><th>المنطقة</th><th>القبيلة</th><th>الرقم التنظيمي</th><th></th></tr></thead>
         <tbody id="directoryBody"></tbody>
       </table>
       <div id="directoryPagination" class="pagination-bar"></div>
+    </div>
+
+    <!-- ==================== Supervisors Page (super_admin only) ==================== -->
+    <div class="page" id="page-supervisors">
+      <h1>المشرفون</h1>
+      <div class="subtitle">عرض جميع المشرفين وفرقهم — إدارة المدراء وفِرقهم.</div>
+      <div id="supervisorsList" style="display:flex; flex-direction:column; gap:12px;"></div>
+      <div id="supervisorDetail" style="display:none;">
+        <div class="section-label" id="supervisorDetailTitle" style="cursor:pointer; color:var(--gold); font-size:14px;">&#8593; العودة إلى قائمة المشرفين</div>
+        <div id="supervisorTeamInfo" style="margin:12px 0 16px;"></div>
+        <div class="search-bar" id="teamFilterBar" style="margin-bottom:16px;">
+          <select id="teamMemberFilter" style="min-width:200px;">
+            <option value="__all__">كل الفريق</option>
+          </select>
+          <input type="text" id="teamSearchInput" placeholder="ابحث في تسجيلات الفريق...">
+          <select id="teamSearchField">
+            <option value="name_surname">الاسم واللقب</option>
+            <option value="registry_id">الرقم</option>
+            <option value="city">مدينة الإقامة</option>
+            <option value="origin_city">مدينة الأصل</option>
+            <option value="tribe">القبيلة</option>
+          </select>
+        </div>
+        <div id="supervisorTeamEntries"></div>
+      </div>
+    </div>
+
+    <!-- ==================== My Team Page (supervisor only) ==================== -->
+    <div class="page" id="page-my-team">
+      <h1>فريقي</h1>
+      <div class="subtitle">إدارة فريقك — عرض أعضاء الفريق وعدد تسجيلاتهم.</div>
+      
+      <div id="myTeamSummary"></div>
+
+      <div class="section-label">أعضاء الفريق</div>
+      <div id="myTeamMembers"></div>
+    </div>
+<!-- ==================== Add Member Page (supervisor only) ==================== -->
+    <div class="page" id="page-add-member">
+      <h1>إضافة عضو جديد</h1>
+      <div class="subtitle">إنشاء حساب عضو فريق جديد تحت إشرافك.</div>
+      <div class="form-card" style="max-width:700px;">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
+          <div class="field"><label>اسم المستخدم</label><input type="text" id="mtUsername" placeholder="اسم المستخدم"></div>
+          <div class="field"><label>البريد الإلكتروني</label><input type="email" id="mtEmail" placeholder="member@example.com"></div>
+          <div class="field"><label>كلمة المرور</label><input type="password" id="mtPassword" placeholder="كلمة المرور"></div>
+          <div class="field"><label>اسم الجهاز</label><input type="text" id="mtDeviceName" placeholder="مثال: GT"></div>
+          <div class="field"><label>الاسم الكامل</label><input type="text" id="mtFullName" placeholder="الاسم الكامل"></div>
+          <div class="field"><label>اللقب</label><input type="text" id="mtSurname" placeholder="اللقب"></div>
+          <div class="field"><label>الهاتف</label><input type="text" id="mtPhone" placeholder="+218..."></div>
+          <div class="field"><label>نوع الهوية</label><select id="mtIdType"><option value="">اختر</option><option value="بطاقة شخصية">بطاقة شخصية</option><option value="جواز سفر">جواز سفر</option></select></div>
+          <div class="field"><label>رقم الهوية</label><input type="text" id="mtIdNumber" placeholder="رقم الهوية"></div>
+          <div class="field"><label>العمر</label><input type="number" id="mtAge" placeholder="العمر"></div>
+          <div class="field"><label>مدينة الإقامة</label><input type="text" id="mtCity" placeholder="مدينة الإقامة"></div>
+          <div class="field"><label>مدينة الأصل</label><input type="text" id="mtOriginCity" placeholder="مدينة الأصل"></div>
+          <div class="field"><label>القبيلة</label><input type="text" id="mtTribe" placeholder="القبيلة"></div>
+          <div class="field"><label>المؤهل العلمي</label><input type="text" id="mtEducation" placeholder="المؤهل العلمي"></div>
+          <div class="field full" style="grid-column:span 3;"><label>ملاحظات</label><textarea id="mtNotes" placeholder="ملاحظات" rows="2"></textarea></div>
+        </div>
+        <div class="form-actions" style="margin-top:16px;">
+          <button class="btn btn-primary" id="addTeamMemberBtn">إضافة عضو</button>
+        </div>
+        <div class="save-flash" id="mtSaveFlash"></div>
+      </div>
+      <div id="addMemberTable"></div>
+    </div>
+<!-- ==================== Map Page ==================== -->
+    <div class="page" id="page-map">
+      <h1>هيكل الفرق</h1>
+      <div class="subtitle">التسلسل الهرمي للمشرفين وأعضاء فرقهم</div>
+      <div id="mapContainer"></div>
     </div>
 
     <div class="page" id="page-devices">
@@ -159,7 +224,7 @@
             <select id="deviceSearchField" title="مجال البحث" disabled><option value="name_surname" selected>الاسم واللقب</option><option value="name">الاسم</option><option value="surname">اللقب</option><option value="city">مدينة الإقامة</option><option value="origin_city">مدينة الأصل</option><option value="tribe">القبيلة</option></select>
             <select id="deviceRegionFilter" disabled><option value="">كل المناطق</option><option value="South">الجنوب</option><option value="West">الغرب</option><option value="East">الشرق</option></select>
           </div>
-          <table><thead><tr><th>الرقم</th><th>الاسم</th><th>العمر</th><th>مدينة الإقامة</th><th>مدينة الأصل</th><th>المنطقة</th><th>القبيلة</th><th>الرقم التنظيمي</th><th></th></tr></thead><tbody id="deviceDirectoryBody"></tbody></table>
+          <table><thead><tr><th>ID</th><th>الاسم</th><th>العمر</th><th>مدينة الإقامة</th><th>مدينة الأصل</th><th>المنطقة</th><th>القبيلة</th><th>الرقم التنظيمي</th><th></th></tr></thead><tbody id="deviceDirectoryBody"></tbody></table>
           <div id="devicePagination" class="pagination-bar"></div>
         </div>
       </div>
@@ -214,8 +279,20 @@
           <div class="field"><label>اسم المستخدم</label><input type="text" id="userUsername" placeholder="مثال: admin"></div>
           <div class="field"><label>البريد الإلكتروني</label><input type="email" id="userEmail" placeholder="مثال: user@example.com"></div>
           <div class="field"><label>اسم الجهاز / الفريق <span class="opt">(مطلوب وفريد)</span></label><input type="text" id="userDeviceName" placeholder="مثال: جهاز1، الفريق أ"></div>
-          <div class="field"><label>الدور</label><select id="userRole"><option value="member">عضو</option><option value="manager">مدير</option><option value="super_admin">مشرف فائق</option></select></div>
+          <div class="field"><label>الدور</label><select id="userRole"><option value="member">عضو فريق</option><option value="supervisor">مشرف</option><option value="super_admin">مشرف فائق</option></select></div>
+          <div class="field" id="userRegionField" style="display:none;"><label>المنطقة <span class="opt">(للمشرفين)</span></label><select id="userRegion"><option value="">اختر المنطقة</option><option value="West">الغرب</option><option value="East">الشرق</option><option value="South">الجنوب</option></select></div>
+          <div class="field"><label>الاسم الكامل</label><input type="text" id="userFullName" placeholder="مثال: محمد علي"></div>
+          <div class="field"><label>اللقب</label><input type="text" id="userSurname" placeholder="اللقب"></div>
+          <div class="field"><label>العمر</label><input type="number" id="userAge" placeholder="العمر"></div>
+          <div class="field"><label>الهاتف</label><input type="text" id="userPhone" placeholder="+218..."></div>
+          <div class="field"><label>رقم الهوية</label><input type="text" id="userIdNumber" placeholder="رقم الهوية"></div>
+          <div class="field"><label>نوع الهوية</label><select id="userIdType"><option value="">اختر</option><option value="بطاقة شخصية">بطاقة شخصية</option><option value="جواز سفر">جواز سفر</option></select></div>
+          <div class="field"><label>مدينة الإقامة</label><input type="text" id="userCity" placeholder="مدينة الإقامة"></div>
+          <div class="field"><label>مدينة الأصل</label><input type="text" id="userOriginCity" placeholder="مدينة الأصل"></div>
+          <div class="field"><label>القبيلة</label><input type="text" id="userTribe" placeholder="القبيلة"></div>
+          <div class="field"><label> المؤهل العلمي</label><input type="text" id="userEducation" placeholder=" المؤهل العلمي"></div>
           <div class="field"><label>كلمة المرور</label><input type="password" id="userPassword" placeholder="كلمة المرور"></div>
+          <div class="field full"><label>ملاحظات</label><textarea id="userNotes" placeholder="ملاحظات" rows="2"></textarea></div>
           <div class="field full"><label>أذونات إضافية <span class="opt">(اختياري)</span></label><input type="text" id="userPermissions" placeholder="عرض، تحرير، حذف، ..."></div>
         </div>
         <div class="form-actions">
@@ -225,10 +302,10 @@
         <div class="save-flash" id="userSaveFlash"></div>
       </div>
 
-      <div class="search-bar"><input type="text" id="userSearchInput" placeholder="ابحث باسم المستخدم أو البريد..."><select id="userRoleFilter"><option value="">كل الأدوار</option><option value="super_admin">مشرف فائق</option><option value="manager">مدير</option><option value="member">عضو</option></select></div>
+      <div class="search-bar"><input type="text" id="userSearchInput" placeholder="ابحث باسم المستخدم أو البريد..."><select id="userRoleFilter"><option value="">كل الأدوار</option><option value="super_admin">مشرف فائق</option><option value="supervisor">مشرف</option><option value="member">عضو فريق</option></select></div>
 
       <table>
-        <thead><tr><th>اسم المستخدم</th><th>البريد الإلكتروني</th><th>اسم الجهاز</th><th>الدور</th><th>الأذونات</th><th></th></tr></thead>
+        <thead><tr><th>اسم المستخدم</th><th>البريد الإلكتروني</th><th>اسم الجهاز</th><th>الدور</th><th>المنطقة</th><th>الأذونات</th><th>الحالة</th><th></th></tr></thead>
         <tbody id="userTableBody"></tbody>
       </table>
     </div>
@@ -283,3 +360,4 @@
   <script src="/app.js?v=2"></script>
 </body>
 </html>
+

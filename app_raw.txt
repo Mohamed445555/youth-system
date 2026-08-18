@@ -11,9 +11,9 @@
 
 const REGION_LABELS = { South: 'الجنوب', West: 'الغرب', East: 'الشرق' };
 const XLSX_COLUMNS = [
-  ['registry_id', 'الرقم'], ['org_id', 'الرقم التنظيمي (المؤتمر)'], ['name', 'الاسم'], ['surname', 'اللقب'], ['age', 'العمر'],
+  ['registry_id', 'ID'], ['org_id', 'الرقم التنظيمي '], ['name', 'الاسم'], ['surname', 'اللقب'], ['age', 'العمر'],
   ['city', 'مدينة الإقامة'], ['origin_city', 'مدينة الأصل'], ['region', 'المنطقة'],
-  ['tribe', 'القبيلة'], ['id_type', 'نوع الهوية'], ['id_number', 'رقم الهوية'], ['education', 'الشهادة الدراسية'],
+  ['tribe', 'القبيلة'], ['id_type', 'نوع الهوية'], ['id_number', 'رقم الهوية'], ['education', ' المؤهل العلمي'],
   ['phone', 'الهاتف'], ['phone2', 'هاتف إضافي'], ['notes', 'ملاحظات'], ['created_at', 'تاريخ التسجيل']
 ];
 const REGION_AR_TO_EN = { 'الجنوب': 'South', 'الغرب': 'West', 'الشرق': 'East' };

@@ -29,7 +29,7 @@ for (let i = 0; i < 500; i++) {
   const d = ri(devices);
   oc++;
   data.push({
-    'الرقم': d + '-' + String(i + 1).padStart(4, '0'),
+    'ID': d + '-' + String(i + 1).padStart(4, '0'),
     'الاسم': ri(names),
     'اللقب': ri(surnames),
     'العمر': rn(18, 75),
@@ -42,7 +42,7 @@ for (let i = 0; i < 500; i++) {
     'رقم الهوية': String(rn(100000000, 999999999)),
     'الهاتف': rp(),
     'الرقم التنظيمي': d + '-' + String(oc).padStart(5, '0'),
-    'الشهادة الدراسية': ri(edus),
+    ' المؤهل العلمي': ri(edus),
     'ملاحظات': Math.random() < 0.1 ? 'ملاحظة عادية' : ''
   });
 }

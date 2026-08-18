@@ -1933,7 +1933,7 @@ function openDetail(id){
   currentDetailId = id;
   document.getElementById('detailName').textContent = `${p.name} ${p.surname||''}`;
   const fields = [
-    ['الرقم', p.registry_id || ('#'+String(p.id).padStart(4,'0'))],
+    ['ID', p.registry_id || ('#'+String(p.id).padStart(4,'0'))],
     ['الرقم التنظيمي (المؤتمر)', p.org_id || '—'],
     ['العمر', p.age ?? '—'],
     ['المنطقة', REGION_LABELS[p.region] || '—'],
@@ -1942,7 +1942,7 @@ function openDetail(id){
     ['القبيلة', p.tribe || '—'],
     ['نوع الهوية', p.id_type || '—'],
     ['رقم الهوية', p.id_number || '—'],
-    ['الشهادة الدراسية', p.education || '—'],
+    [' المؤهل العلمي', p.education || '—'],
     ['الهاتف', p.phone || '—'],
     ['هاتف إضافي', p.phone2 || '—'],
   ];
@@ -2030,9 +2030,9 @@ document.getElementById('addCityBtn').addEventListener('click', async ()=>{
 
 // ---------- Export / Import (Excel) ----------
 const XLSX_COLUMNS = [
-  ['registry_id','الرقم'], ['org_id','الرقم التنظيمي (المؤتمر)'], ['name','الاسم'], ['surname','اللقب'], ['age','العمر'],
+  ['registry_id','ID'], ['org_id','الرقم التنظيمي (المؤتمر)'], ['name','الاسم'], ['surname','اللقب'], ['age','العمر'],
   ['city','مدينة الإقامة'], ['origin_city','مدينة الأصل'], ['region','المنطقة'],
-  ['tribe','القبيلة'], ['id_type','نوع الهوية'], ['id_number','رقم الهوية'], ['education','الشهادة الدراسية'],
+  ['tribe','القبيلة'], ['id_type','نوع الهوية'], ['id_number','رقم الهوية'], ['education','المؤهل العلمي '],
   ['phone','الهاتف'], ['phone2','هاتف إضافي'], ['notes','ملاحظات'],
   ['created_at','تاريخ التسجيل']
 ];
